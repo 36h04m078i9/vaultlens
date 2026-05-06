@@ -3,44 +3,60 @@ package search
 import (
 	"context"
 	"fmt"
-
-	"github.com/your-org/vaultlens/internal/audit"
-	"github.com/your-org/vaultlens/internal/vault"
 )
 
-// Service combines Vault listing with fuzzy search and audit logging.
+// Result represents a single fuzzy-search hit with rendering metadata.
+type Result struct {
+	Path        string
+	Highlighted string
+	Score       int
+}
+
+// PathLister can enumerate secret paths from a backend.
+type PathLister interface {
+	ListPaths(ctx context.Context, mount string) ([]string, error)
+}
+
+// Service combines path listing with fuzzy search and highlight.
 type Service struct {
-	client *vault.Client
-	logger *audit.Logger
+	lister PathLister
 }
 
-// NewService creates a new search Service.
-func NewService(client *vault.Client, logger *audit.Logger) *Service {
-	return &Service{client: client, logger: logger}
+// NewService creates a Service backed by the given PathLister.
+func NewService(lister PathLister) *Service {
+	return &Service{lister: lister}
 }
 
-// Search lists all secrets under mountPath, applies fuzzy search with query,
-// logs the operation, and returns matching results.
-func (s *Service) Search(ctx context.Context, mountPath, query string) ([]Result, error) {
-	paths, err := s.client.ListSecrets(ctx, mountPath)
+// Search lists all paths under mount and returns fuzzy-matched, highlighted
+// results sorted by descending score. An empty query returns all paths with
+// score 0.
+func (s *Service) Search(ctx context.Context, mount, query string) ([]Result, error) {
+	paths, err := s.lister.ListPaths(ctx, mount)
 	if err != nil {
-		s.logger.Log(audit.Entry{
-			Operation: "search",
-			Path:      mountPath,
-			Success:   false,
-			Error:     err.Error(),
-		})
-		return nil, fmt.Errorf("search: listing secrets at %q: %w", mountPath, err)
+		return nil, fmt.Errorf("search: list paths: %w", err)
 	}
 
-	results := Fuzzy(paths, query)
+	if query == "" {
+		results := make([]Result, len(paths))
+		for i, p := range paths {
+			results[i] = Result{Path: p, Highlighted: p, Score: 0}
+		}
+		return results, nil
+	}
 
-	s.logger.Log(audit.Entry{
-		Operation: "search",
-		Path:      mountPath,
-		Success:   true,
-		Details:   fmt.Sprintf("query=%q matched=%d total=%d", query, len(results), len(paths)),
-	})
-
+	fuzzyHits := Fuzzy(paths, query)
+	results := make([]Result, len(fuzzyHits))
+	for i, hit := range fuzzyHits {
+		highlighted := Highlight([]string{hit.Path}, query)
+		hl := hit.Path
+		if len(highlighted) > 0 {
+			hl = highlighted[0]
+		}
+		results[i] = Result{
+			Path:        hit.Path,
+			Highlighted: hl,
+			Score:       hit.Score,
+		}
+	}
 	return results, nil
 }
