@@ -1,0 +1,41 @@
+# vaultlens example configuration
+# Copy to .vaultlens.yaml or point VAULTLENS_CONFIG at this file.
+
+vault:
+  # Vault server address. Overridden by VAULT_ADDR environment variable.
+  address: "http://127.0.0.1:8200"
+
+  # Vault token with read + list permissions. Overridden by VAULT_TOKEN.
+  # Prefer using a short-lived token or VAULT_TOKEN env var instead of
+  # storing credentials in this file.
+  token: ""
+
+  # KV mount path to explore.
+  mount: "secret"
+
+  # How long to cache path listings and secret values.
+  cache_ttl: 5m
+
+  # HTTP request timeout for Vault API calls.
+  timeout: 10s
+
+audit:
+  # Write an audit log entry for every secret read and list operation.
+  enabled: true
+
+  # Path to the JSONL audit log file. Leave empty to write to stdout.
+  file_path: ""
+
+search:
+  # Maximum number of fuzzy-search results returned per query.
+  max_results: 50
+
+  # Minimum relevance score (0.0–1.0) for a result to be included.
+  min_score: 0.1
+
+ui:
+  # Number of results visible at once in the results pane.
+  page_size: 20
+
+  # Show a secret-value preview panel when a result is selected.
+  show_preview: true
