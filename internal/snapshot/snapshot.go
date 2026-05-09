@@ -1,69 +1,94 @@
-// Package snapshot provides point-in-time captures of Vault secret paths
-// for comparison, auditing, and drift detection.
 package snapshot
 
 import (
-	"fmt"
+	"errors"
+	"sort"
+	"strings"
+	"sync"
 	"time"
 )
 
-// Snapshot represents a captured set of Vault secret paths at a point in time.
+// SecretEntry is a single path/value pair captured in a snapshot.
+type SecretEntry struct {
+	Path  string
+	Value string
+}
+
+// Snapshot represents a point-in-time capture of a set of Vault secrets.
 type Snapshot struct {
-	ID        string            `json:"id"`
-	Label     string            `json:"label"`
-	CapturedAt time.Time        `json:"captured_at"`
-	Paths     []string          `json:"paths"`
-	Meta      map[string]string `json:"meta,omitempty"`
+	ID      string
+	TakenAt time.Time
+	Prefix  string
+	Secrets []SecretEntry
 }
 
-// Store holds named snapshots in memory.
+// Store holds snapshots in memory keyed by ID.
 type Store struct {
-	snaps map[string]*Snapshot
+	mu    sync.RWMutex
+	items map[string]*Snapshot
 }
 
-// NewStore returns an initialised snapshot Store.
+// NewStore creates an empty snapshot store.
 func NewStore() *Store {
-	return &Store{snaps: make(map[string]*Snapshot)}
+	return &Store{items: make(map[string]*Snapshot)}
 }
 
-// Save stores a snapshot, keyed by its ID.
-func (s *Store) Save(snap *Snapshot) error {
-	if snap == nil {
-		return fmt.Errorf("snapshot: cannot save nil snapshot")
+// Save persists a snapshot. Returns an error if sn is nil or has an empty ID.
+func (s *Store) Save(sn *Snapshot) error {
+	if sn == nil {
+		return errors.New("snapshot must not be nil")
 	}
-	if snap.ID == "" {
-		return fmt.Errorf("snapshot: ID must not be empty")
+	if sn.ID == "" {
+		return errors.New("snapshot ID must not be empty")
 	}
-	s.snaps[snap.ID] = snap
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.items[sn.ID] = sn
 	return nil
 }
 
-// Get retrieves a snapshot by ID. Returns nil, false when not found.
+// Get retrieves a snapshot by ID.
 func (s *Store) Get(id string) (*Snapshot, bool) {
-	snap, ok := s.snaps[id]
-	return snap, ok
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	sn, ok := s.items[id]
+	return sn, ok
 }
 
-// List returns all stored snapshots ordered by capture time (oldest first).
-func (s *Store) List() []*Snapshot {
-	out := make([]*Snapshot, 0, len(s.snaps))
-	for _, snap := range s.snaps {
-		out = append(out, snap)
+// Delete removes a snapshot by ID and reports whether it existed.
+func (s *Store) Delete(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.items[id]
+	delete(s.items, id)
+	return ok
+}
+
+// All returns all snapshots sorted by TakenAt descending.
+func (s *Store) All() []*Snapshot {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]*Snapshot, 0, len(s.items))
+	for _, sn := range s.items {
+		out = append(out, sn)
 	}
-	// simple insertion-sort by CapturedAt
-	for i := 1; i < len(out); i++ {
-		for j := i; j > 0 && out[j].CapturedAt.Before(out[j-1].CapturedAt); j-- {
-			out[j], out[j-1] = out[j-1], out[j]
-		}
-	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].TakenAt.After(out[j].TakenAt)
+	})
 	return out
 }
 
-// Delete removes a snapshot by ID. Returns false when the ID was not found.
-func (s *Store) Delete(id string) bool {
-	if _, ok := s.snaps[id]; !ok {
-		return false
+// FilterByPrefix returns snapshots whose Prefix starts with the given string.
+func (s *Store) FilterByPrefix(prefix string) []*Snapshot {
+	all := s.All()
+	if prefix == "" {
+		return all
 	}
-	delete(s.snaps, id)
-	return true
+	out := all[:0:0]
+	for _, sn := range all {
+		if strings.HasPrefix(sn.Prefix, prefix) {
+			out = append(out, sn)
+		}
+	}
+	return out
 }
