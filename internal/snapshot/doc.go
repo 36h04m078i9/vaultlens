@@ -1,25 +1,22 @@
 // Package snapshot provides facilities for capturing, storing, comparing,
-// listing, pruning, tagging, exporting, and scheduling periodic snapshots
-// of Vault secret paths.
+// listing, pruning, tagging, and exporting point-in-time views of Vault
+// secret paths.
 //
-// # Capturing
+// # Core types
 //
-// Use [Capture] with a [PathLister] and a [Store] to walk a Vault prefix and
-// persist a point-in-time snapshot of all discovered paths.
+//   - Store – in-memory snapshot repository (thread-safe).
+//   - ScheduleStore – persists recurring capture schedules.
+//   - Runner – executes scheduled captures at their configured intervals.
+//   - TagStore – associates human-readable tags with snapshot IDs.
 //
-// # Comparing
+// # Typical workflow
 //
-// [Compare] and [DiffSnapshots] detect added, removed, and changed keys
-// between two stored snapshots, returning structured [diff.Result] slices.
+//  1. Create a Store and a ScheduleStore.
+//  2. Register schedules with ScheduleStore.Add.
+//  3. Instantiate a Runner with a capture func that calls Capture.
+//  4. Call Runner.Start to begin background captures.
+//  5. Use Compare or DiffSnapshots to detect secret drift.
+//  6. Export results via ToExportRecords for audit purposes.
 //
-// # Scheduling
-//
-// [ScheduleStore] manages recurring capture policies. Call [ScheduleStore.Due]
-// with the current time to obtain schedules ready to run, then [ScheduleStore.MarkRun]
-// after each successful capture to advance the schedule cursor.
-//
-// # Pruning
-//
-// [Prune] trims a snapshot store by retention count or age, keeping the
-// most recent N snapshots or removing those older than a given threshold.
+// All exported functions are safe for concurrent use unless stated otherwise.
 package snapshot
