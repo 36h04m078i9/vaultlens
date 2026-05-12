@@ -75,3 +75,15 @@ func Summary(changes []Change) map[ChangeKind]int {
 	}
 	return summary
 }
+
+// Filter returns only the changes that match the given ChangeKind.
+// This is useful for displaying or processing a specific subset of changes.
+func Filter(changes []Change, kind ChangeKind) []Change {
+	var result []Change
+	for _, c := range changes {
+		if c.Kind == kind {
+			result = append(result, c)
+		}
+	}
+	return result
+}
