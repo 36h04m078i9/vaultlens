@@ -57,6 +57,21 @@ func TestCompareDetectsChanged(t *testing.T) {
 	}
 }
 
+func TestCompareDetectsChangedPreservesValues(t *testing.T) {
+	before := map[string]string{"secret/x": "v1"}
+	after := map[string]string{"secret/x": "v2"}
+	changes := diff.Compare(before, after)
+	if len(changes) != 1 {
+		t.Fatalf("expected 1 change, got %d", len(changes))
+	}
+	if changes[0].OldValue != "v1" {
+		t.Errorf("expected OldValue v1, got %s", changes[0].OldValue)
+	}
+	if changes[0].NewValue != "v2" {
+		t.Errorf("expected NewValue v2, got %s", changes[0].NewValue)
+	}
+}
+
 func TestCompareResultsAreSorted(t *testing.T) {
 	before := map[string]string{"secret/z": "v", "secret/a": "v"}
 	after := map[string]string{"secret/m": "v"}
