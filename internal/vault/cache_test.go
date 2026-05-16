@@ -88,3 +88,18 @@ func TestCacheOverwrite(t *testing.T) {
 		t.Fatalf("expected 'second', got %v", val)
 	}
 }
+
+func TestCacheInvalidateNonExistentKey(t *testing.T) {
+	// Invalidating a key that was never set should not panic or affect other keys.
+	c := NewCache(5 * time.Second)
+	c.Set("existing", "value")
+	c.Invalidate("nonexistent")
+
+	val, ok := c.Get("existing")
+	if !ok {
+		t.Fatal("expected cache hit for 'existing' after invalidating unrelated key")
+	}
+	if val != "value" {
+		t.Fatalf("expected 'value', got %v", val)
+	}
+}
