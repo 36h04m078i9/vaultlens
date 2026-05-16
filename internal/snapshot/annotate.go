@@ -67,6 +67,13 @@ func (a *AnnotationStore) List(id string) []Annotation {
 	return result
 }
 
+// Count returns the number of annotations for the given snapshot ID.
+func (a *AnnotationStore) Count(id string) int {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return len(a.annotations[id])
+}
+
 // Remove deletes all annotations for the given snapshot ID.
 // Returns true if any annotations were removed.
 func (a *AnnotationStore) Remove(id string) bool {
