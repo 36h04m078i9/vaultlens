@@ -81,3 +81,16 @@ func TestToExportRecordsTimestampSet(t *testing.T) {
 		t.Error("expected non-zero timestamp on exported record")
 	}
 }
+
+func TestToExportRecordsLimitZeroReturnsAll(t *testing.T) {
+	// A Limit of 0 should be treated as "no limit" and return all records.
+	h := New(10)
+	for _, p := range []string{"a", "b", "c"} {
+		h.Push(p)
+	}
+
+	records := ToExportRecords(h, ExportOptions{Limit: 0})
+	if len(records) != 3 {
+		t.Fatalf("expected 3 records with zero limit, got %d", len(records))
+	}
+}
